@@ -3,7 +3,10 @@ import requests
 import time
 import configparser
 import json
+import syslog
 
+# Open the syslog connection
+syslog.openlog(facility=syslog.LOG_DAEMON)
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
@@ -56,6 +59,6 @@ while True:
             }
             output_json = json.dumps(output_data, ensure_ascii=False)
             # 输出响应内容
-            print(output_json)
+            syslog.syslog(syslog.LOG_INFO, output_json)
 
     time.sleep(sleep_duration)
