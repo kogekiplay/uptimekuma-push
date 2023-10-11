@@ -53,7 +53,7 @@ while True:
 
             output_data = {
                 'name': target_name,
-                'ping_result': ping_result,
+                'ping': ping_result,
                 'response': response.json(),  # Assuming the response is in JSON format
                 'time': time.strftime("%Y.%m.%d %H:%M:%S", time.localtime())
             }
