@@ -1,0 +1,25 @@
+# uptime-kuma push url
+[API]
+url = https://yourdomain.com/api/push
+
+# the tcp detection interval should be slightly shorter than the api heartbeat cycle
+interval = 110 
+
+# need to test
+# should be TARGET + num
+[TARGET1]
+name = Beijing Unicom
+host = 1.com
+port = 6789
+
+# your push api token in https://yourdomain.com/api/push/{xxxxx}?...
+token = xxxxxx
+
+[TARGET2]
+name = Guangzhou Mobile
+host = 1.1.1.1
+port = 22222
+token = xxxxxx
+
+[TARGET3]
+...
