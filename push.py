@@ -23,6 +23,9 @@ def ping(target_host, target_port):
         return ping_time
     except (socket.timeout, ConnectionRefusedError):
         return -1
+    except socket.gaierror as e:
+        syslog.syslog(syslog.LOG_ERR, f"DNS resolution error for {target_host}: {e}")
+        return -1
 
 def send_data(target_name, target_host, target_port, api_token, api_base_url):
     ping_result = ping(target_host, target_port)
