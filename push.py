@@ -2,10 +2,13 @@ import socket
 import requests
 import configparser
 import json
+import syslog
 import logging
 import schedule
 import time
 
+# Open the syslog connection
+syslog.openlog(facility=syslog.LOG_DAEMON)
 # 配置日志记录器
 logging.basicConfig(filename='/root/uptimekuma-push/log/output.log', level=logging.INFO)
 
@@ -24,6 +27,7 @@ def ping(target_host, target_port):
     except (socket.timeout, ConnectionRefusedError):
         return -1
     except socket.gaierror as e:
+        syslog.syslog(syslog.LOG_ERR, f"DNS resolution error for {target_host}: {e}")
         logging.error(f"DNS resolution error for {target_host}: {e}")
         return -1
 
@@ -51,9 +55,11 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url):
             'time': time.strftime("%Y.%m.%d %H:%M:%S", time.localtime())
         }
         output_json = json.dumps(output_data, ensure_ascii=False)
+        syslog.syslog(syslog.LOG_INFO, output_json)
         logging.info(output_json)
 
     except Exception as e:
+        syslog.syslog(syslog.LOG_ERR, f"An error occurred: {e}")
         logging.error(f"An error occurred: {e}")
 
 def schedule_tasks():
