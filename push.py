@@ -10,12 +10,14 @@ import time
 # Open the syslog connection
 syslog.openlog(facility=syslog.LOG_DAEMON)
 # 配置日志记录器
-logging.basicConfig(filename='/root/uptimekuma-push/log/output.log', level=logging.INFO)
+logging.basicConfig(
+    filename='/root/uptimekuma-push/log/output.log', level=logging.INFO)
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
 
 # get api url
+
 
 def ping(target_host, target_port):
     try:
@@ -27,9 +29,11 @@ def ping(target_host, target_port):
     except (socket.timeout, ConnectionRefusedError):
         return -1
     except socket.gaierror as e:
-        syslog.syslog(syslog.LOG_ERR, f"DNS resolution error for {target_host}: {e}")
+        syslog.syslog(syslog.LOG_ERR,
+                      f"DNS resolution error for {target_host}: {e}")
         logging.error(f"DNS resolution error for {target_host}: {e}")
         return -1
+
 
 def send_data(target_name, target_host, target_port, api_token, api_base_url):
     ping_result = ping(target_host, target_port)
@@ -62,6 +66,7 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url):
         syslog.syslog(syslog.LOG_ERR, f"An error occurred: {e}")
         logging.error(f"An error occurred: {e}")
 
+
 def schedule_tasks():
     for section in config.sections():
         if section.startswith('TARGET'):
@@ -71,8 +76,13 @@ def schedule_tasks():
             target_port = int(config.get(section, 'port'))
             api_token = config.get(section, 'token')
             sleep_duration = int(config.get('API', 'interval'))
-            send_data(target_name, target_host, target_port, api_token, api_base_url)
-            schedule.every(sleep_duration).seconds.do(send_data, target_name, target_host, target_port, api_token, api_base_url)
+            send_data(target_name, target_host,
+                      target_port, api_token, api_base_url)
+            schedule.every(sleep_duration).seconds.do(
+                send_data, target_name, target_host, target_port, api_token, api_base_url)
+            schedule.every(sleep_duration * 5 - 30).seconds.do(send_data,
+                                                               target_name, target_host, target_port, api_token, api_base_url)
+
 
 def main():
     schedule_tasks()
@@ -80,6 +90,7 @@ def main():
     while True:
         schedule.run_pending()
         time.sleep(1)
+
 
 if __name__ == '__main__':
     main()
