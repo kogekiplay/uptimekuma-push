@@ -78,7 +78,7 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url, dn
 
             # Update DNS record with the new CNAME
             update_success = update_dns_record(
-                zone_id, domain, dns_token, dns_id, new_cname, ttl=1)
+                zone_id, domain, dns_token, dns_id, new_cname, ttl=60)
             if not update_success:
                 syslog.syslog(
                     syslog.LOG_ERR, f"Failed to update DNS record with new CNAME: {new_cname}")
