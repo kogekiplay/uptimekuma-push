@@ -12,7 +12,7 @@ from collections import deque
 syslog.openlog(facility=syslog.LOG_DAEMON)
 # 配置日志记录器
 logging.basicConfig(
-    filename='/root/uptimekuma-push/log/output.log', level=logging.INFO)
+    filename='log/output.log', level=logging.INFO)
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
@@ -61,7 +61,7 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url, dn
         syslog.syslog(syslog.LOG_INFO, output_json)
         logging.info(output_json)
 
-        if ping_result < 0 and target_cnames:
+        if ping_result < 0 and target_cnames and dns_token and zone_id and domain:
             dns_id = get_record_id(zone_id, domain, dns_token)
 
             # Check if DNS record ID retrieval was successful
@@ -91,6 +91,9 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url, dn
 
 
 def get_record_id(zone_id, domain_name, dns_token):
+    if not dns_token or not zone_id:
+        return None
+
     resp = requests.get(
         'https://api.cloudflare.com/client/v4/zones/{}/dns_records'.format(
             zone_id),
@@ -108,6 +111,9 @@ def get_record_id(zone_id, domain_name, dns_token):
 
 
 def update_dns_record(zone_id, domain, dns_token, dns_id, content, proxied=False):
+    if not dns_token or not zone_id:
+        return False
+
     resp = requests.put(
         'https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}'.format(
             zone_id, dns_id),
@@ -145,13 +151,20 @@ def schedule_tasks():
             # dns config
             zone_id = config.get(section, 'zoneid', fallback=None)
             domain = config.get(section, 'domain', fallback=None)
-            target_cnames = deque(config.get(
-                section, 'cnames', fallback='').split(','))
+            target_cnames_str = config.get(section, 'cnames', fallback=None)
 
+            # Convert the comma-separated string to a list
+            target_cnames = deque(target_cnames_str.split(
+                ',')) if target_cnames_str else None
+
+            # Schedule the job with the function and its arguments
             schedule.every(sleep_duration).seconds.do(
-                send_data(target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames))
-            schedule.every(sleep_duration * 5 - 30).seconds.do(send_data(target_name, target_host,
-                                                                         target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames))
+                send_data, target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames)
+            schedule.every(sleep_duration * 5 - 30).seconds.do(
+                send_data, target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames)
+            # You can add more schedule.every lines if needed
+
+# ...
 
 
 def main():
