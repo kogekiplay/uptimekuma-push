@@ -6,6 +6,7 @@ import syslog
 import logging
 import schedule
 import time
+from collections import deque
 
 # Open the syslog connection
 syslog.openlog(facility=syslog.LOG_DAEMON)
@@ -15,8 +16,6 @@ logging.basicConfig(
 
 config = configparser.ConfigParser()
 config.read('config.ini', encoding='utf-8')
-
-# get api url
 
 
 def ping(target_host, target_port):
@@ -35,13 +34,13 @@ def ping(target_host, target_port):
         return -1
 
 
-def send_data(target_name, target_host, target_port, api_token, api_base_url):
+def send_data(target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames):
     ping_result = ping(target_host, target_port)
 
     # Prepare the data to be sent
     data = {
-        'status': 'up' if ping_result > 0 else 'down',
-        'msg': 'Online' if ping_result > 0 else 'Offline',
+        'status': 'up' if ping_result > 0 else f'离线，正在尝试切换Cname域名，当前CNAME: {target_cnames[0] if target_cnames else "无"}, 下一个CNAME: {target_cnames[1] if len(target_cnames) > 1 else "无"}',
+        'msg': 'Online' if ping_result > 0 else 'Online',
         'ping': ping_result
     }
 
@@ -62,26 +61,97 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url):
         syslog.syslog(syslog.LOG_INFO, output_json)
         logging.info(output_json)
 
+        if ping_result < 0 and target_cnames:
+            dns_id = get_record_id(zone_id, domain, dns_token)
+
+            # Check if DNS record ID retrieval was successful
+            if dns_id is None:
+                syslog.syslog(
+                    syslog.LOG_ERR, "Failed to retrieve DNS record ID. Skipping CNAME switch.")
+                logging.error(
+                    "Failed to retrieve DNS record ID. Skipping CNAME switch.")
+                return
+
+            # Switch to the next CNAME in the list
+            new_cname = target_cnames.popleft()
+            target_cnames.append(new_cname)
+
+            # Update DNS record with the new CNAME
+            update_success = update_dns_record(
+                zone_id, domain, dns_token, dns_id, new_cname)
+            if not update_success:
+                syslog.syslog(
+                    syslog.LOG_ERR, f"Failed to update DNS record with new CNAME: {new_cname}")
+                logging.error(
+                    f"Failed to update DNS record with new CNAME: {new_cname}")
+
     except Exception as e:
         syslog.syslog(syslog.LOG_ERR, f"An error occurred: {e}")
         logging.error(f"An error occurred: {e}")
 
 
+def get_record_id(zone_id, domain_name, dns_token):
+    resp = requests.get(
+        'https://api.cloudflare.com/client/v4/zones/{}/dns_records'.format(
+            zone_id),
+        headers={
+            'Authorization': 'Bearer ' + dns_token,
+            'Content-Type': 'application/json'
+        })
+    if not json.loads(resp.text)['success']:
+        return None
+    domains = json.loads(resp.text)['result']
+    for domain in domains:
+        if domain_name == domain['name']:
+            return domain['id']
+    return None
+
+
+def update_dns_record(zone_id, domain, dns_token, dns_id, content, proxied=False):
+    resp = requests.put(
+        'https://api.cloudflare.com/client/v4/zones/{}/dns_records/{}'.format(
+            zone_id, dns_id),
+        json={
+            'type': 'CNAME',
+            'name': domain,
+            'content': content,
+            'proxied': proxied
+        },
+        headers={
+            'Authorization': 'Bearer ' + dns_token,
+            'Content-Type': 'application/json'
+        })
+    if not json.loads(resp.text)['success']:
+        return False
+    return True
+
+
 def schedule_tasks():
     for section in config.sections():
         if section.startswith('TARGET'):
+
+            # API
             api_base_url = config.get('API', 'url')
+            dns_token = config.get(
+                'API', 'dns_token', fallback=None)
+            sleep_duration = int(config.get('API', 'interval'))
+
+            # host config
             target_name = config.get(section, 'name')
             target_host = config.get(section, 'host')
             target_port = int(config.get(section, 'port'))
             api_token = config.get(section, 'token')
-            sleep_duration = int(config.get('API', 'interval'))
-            send_data(target_name, target_host,
-                      target_port, api_token, api_base_url)
+
+            # dns config
+            zone_id = config.get(section, 'zoneid', fallback=None)
+            domain = config.get(section, 'domain', fallback=None)
+            target_cnames = deque(config.get(
+                section, 'cnames', fallback='').split(','))
+
             schedule.every(sleep_duration).seconds.do(
-                send_data, target_name, target_host, target_port, api_token, api_base_url)
-            schedule.every(sleep_duration * 5 - 30).seconds.do(send_data,
-                                                               target_name, target_host, target_port, api_token, api_base_url)
+                send_data(target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames))
+            schedule.every(sleep_duration * 5 - 30).seconds.do(send_data(target_name, target_host,
+                                                                         target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames))
 
 
 def main():

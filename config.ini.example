@@ -1,6 +1,8 @@
 # uptime-kuma push url
 [API]
 url = https://yourdomain.com/api/push
+cloudflare_account_email = test@test.com
+dns_token = xxxxxxx
 
 # the tcp detection interval should be slightly shorter than the api heartbeat cycle
 interval = 110 
@@ -20,6 +22,11 @@ name = Guangzhou Mobile
 host = 1.1.1.1
 port = 22222
 token = xxxxxx
+
+
+zoneid = xxxxxx
+domain = www.baidu.com
+cname = www.baidu.com, www.bilibili.com
 
 [TARGET3]
 ...
