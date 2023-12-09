@@ -132,32 +132,31 @@ def update_dns_record(zone_id, domain, dns_token, dns_id, content, proxied=False
     return True
 
 
+def get_target_config(section):
+    return (
+        config.get(section, 'name'),
+        config.get(section, 'host'),
+        int(config.get(section, 'port')),
+        config.get(section, 'token'),
+        config.get('API', 'url'),
+        config.get('API', 'dns_token', fallback=None),
+        config.get(section, 'zoneid', fallback=None),
+        config.get(section, 'domain', fallback=None),
+        deque(config.get(section, 'cnames', fallback='').split(',')) or None
+    )
+
+
 def schedule_tasks():
     for section in config.sections():
         if section.startswith('TARGET'):
-
-            # API
-            api_base_url = config.get('API', 'url')
-            dns_token = config.get(
-                'API', 'dns_token', fallback=None)
+            target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames = get_target_config(
+                section)
             sleep_duration = int(config.get('API', 'interval'))
-
-            # host config
-            target_name = config.get(section, 'name')
-            target_host = config.get(section, 'host')
-            target_port = int(config.get(section, 'port'))
-            api_token = config.get(section, 'token')
-
-            # dns config
-            zone_id = config.get(section, 'zoneid', fallback=None)
-            domain = config.get(section, 'domain', fallback=None)
-            target_cnames_str = config.get(section, 'cnames', fallback=None)
-
-            # Convert the comma-separated string to a list
-            target_cnames = deque(target_cnames_str.split(
-                ',')) if target_cnames_str else None
-
             # Schedule the job with the function and its arguments
+
+            # Initial call to send_data
+            send_data(target_name, target_host, target_port, api_token,
+                      api_base_url, dns_token, zone_id, domain, target_cnames)
             schedule.every(sleep_duration).seconds.do(
                 send_data, target_name, target_host, target_port, api_token, api_base_url, dns_token, zone_id, domain, target_cnames)
             schedule.every(sleep_duration * 5 - 30).seconds.do(
