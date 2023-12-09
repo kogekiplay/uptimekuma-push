@@ -39,7 +39,7 @@ def send_data(target_name, target_host, target_port, api_token, api_base_url, dn
 
     # Prepare the data to be sent
     data = {
-        'status': 'up' if ping_result > 0 else f'离线，正在尝试切换Cname域名，当前CNAME: {target_cnames[0] if target_cnames else "无"}, 下一个CNAME: {target_cnames[1] if len(target_cnames) > 1 else "无"}',
+        'status': 'up' if ping_result > 0 else f'离线，正在尝试切换Cname域名，当前CNAME: {target_cnames[0] if target_cnames and len(target_cnames) > 0 else "无"}, 下一个CNAME: {target_cnames[1] if target_cnames and len(target_cnames) > 1 else "无"}',
         'msg': 'Online' if ping_result > 0 else 'Online',
         'ping': ping_result
     }
